@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VP_OS_ELITE_PERSISTENT</title>
+    <style>
+        :root {
+            --bg: #000;
+            --container-bg: rgba(0, 15, 0, 0.5);
+            --text-primary: #0f0;
+            --text-secondary: #060;
+            --text-dim: #040;
+            --timer-color: #fff;
+            --metric-value: #eee;
+            --border: #1a1a1a;
+            --school-bar: #0f0;
+            --cal-bar: #0088ff;
+            --flip-speed: 0.6s;
+        }
+
+        body.light-mode {
+            --bg: #f4f4f4;
+            --container-bg: #fff;
+            --text-primary: #222;
+            --text-secondary: #666;
+            --text-dim: #999;
+            --timer-color: #000;
+            --metric-value: #333;
+            --border: #ddd;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-transform: uppercase;
+            transition: background 0.3s ease;
+            gap: 20px;
+        }
+
+        /* Settings UI */
+        #settings-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 1.5rem;
+            z-index: 100;
+            transition: color 0.2s;
+        }
+        #settings-btn:hover { color: #999; }
+
+        #settings-panel {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            background: var(--container-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            backdrop-filter: blur(15px);
+            z-index: 99;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 250px;
+        }
+
+        .setting-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+        .setting-group label { font-size: 0.7rem; color: var(--text-secondary); }
+        .setting-group select, .setting-group input {
+            background: #111; color: #fff; border: 1px solid #333; padding: 5px; font-family: inherit; font-size: 0.8rem;
+        }
+        .light-mode .setting-group select, .light-mode .setting-group input { background: #eee; color: #000; border: 1px solid #ccc; }
+
+        .settings-divider {
+            border-top: 1px solid var(--text-dim);
+            margin: 10px 0;
+            padding-top: 10px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        /* Main UI */
+        .container {
+            border: 2px solid var(--border);
+            padding: 30px;
+            background: var(--container-bg);
+            width: 700px;
+            box-shadow: 0 0 50px rgba(0, 255, 0, 0.05);
+            position: relative;
+        }
+
+        .flip-timer {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+            perspective: 1000px;
+        }
+        .flip-group { display: flex; gap: 4px; align-items: center; }
+        .flip-card {
+            position: relative;
+            width: 60px;
+            height: 90px;
+            background: #111;
+            border-radius: 4px;
+            font-size: 4.5rem;
+            font-weight: 900;
+            line-height: 90px;
+            text-align: center;
+            color: var(--timer-color);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .flip-separator {
+            font-size: 3rem;
+            font-weight: 900;
+            line-height: 90px;
+            color: var(--timer-color);
+            padding: 0 5px;
+        }
+
+        .animate-flip { animation: flip-main var(--flip-speed) ease-in-out; }
+        @keyframes flip-main {
+            0% { transform: rotateX(0deg); }
+            50% { transform: rotateX(-90deg); filter: brightness(0.5); }
+            50.1% { transform: rotateX(90deg); filter: brightness(0.5); }
+            100% { transform: rotateX(0deg); }
+        }
+
+        .class-panel {
+            border: 2px solid var(--border);
+            padding: 20px;
+            background: var(--container-bg);
+            width: 400px;
+            height: fit-content;
+            box-shadow: 0 0 50px rgba(0, 255, 0, 0.05);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--text-dim);
+            padding-bottom: 5px;
+        }
+
+        .bar-container { margin: 15px 0; width: 100%; }
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .pct-readout { font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+        .bar-bg {
+            width: 100%; height: 12px; background: #010; border: 1px solid var(--text-dim); position: relative; overflow: hidden;
+        }
+        .light-mode .bar-bg { background: #ddd; }
+        .bar-fill {
+            height: 100%; background: var(--school-bar); width: 0%; box-shadow: 0 0 10px var(--school-bar); transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bar-fill.alt {
+            background: var(--cal-bar); box-shadow: 0 0 10px var(--cal-bar); transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .data-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 20px; }
+        .metric {
+            display: flex; justify-content: space-between; border-bottom: 1px solid var(--text-dim); padding: 5px 0;
+        }
+        .label { color: var(--text-secondary); font-size: 0.8rem; font-weight: bold; }
+        .value { font-variant-numeric: tabular-nums; font-size: 1rem; color: var(--metric-value); }
+
+        .subject-row {
+            display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--text-dim); font-size: 0.85rem; position: relative; overflow: hidden; margin-bottom: 2px;
+        }
+        .subject-drain-bg { position: absolute; top: 0; left: 0; height: 100%; z-index: 0; transition: width 0.1s linear; }
+        .subject-content { position: relative; z-index: 1; display: flex; justify-content: space-between; width: 100%; }
+        .subject-name { color: var(--text-primary); font-weight: bold; }
+        .subject-freq { color: var(--timer-color); font-variant-numeric: tabular-nums; }
+        .subject-time { color: var(--text-secondary); font-size: 0.72rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .subject-sessions { color: var(--text-dim); font-size: 0.65rem; margin-top: 1px; }
+
+        .status-footer {
+            margin-top: 20px; font-size: 0.7rem; display: flex; justify-content: space-between; color: var(--text-dim); border-top: 1px solid var(--text-dim); padding-top: 10px;
+        }
+
+        #next-transition { color: var(--timer-color); font-weight: bold; letter-spacing: 1px; }
+        .custom-btn {
+            background: var(--text-dim); color: #fff; border: none; padding: 8px; cursor: pointer; font-family: inherit; font-size: 0.7rem; margin-top: 5px; border-radius: 2px;
+        }
+        .custom-btn:hover { background: var(--text-secondary); }
+        .danger-btn { background: #400; margin-top: 15px; }
+        .danger-btn:hover { background: #800; }
+
+        @media (max-width: 1100px) {
+            body { flex-direction: column; height: auto; padding: 40px 20px; }
+            .container, .class-panel { width: 100%; max-width: 700px; }
+        }
+    </style>
+</head>
+<body>
+
+<button id="settings-btn" onclick="toggleSettings()">⚙</button>
+
+<div id="settings-panel">
+    <div class="setting-group">
+        <label>Display Mode</label>
+        <select id="theme-select" onchange="savePreferences()">
+            <option value="dark">Hacker Dark</option>
+            <option value="light">Industrial Light</option>
+        </select>
+    </div>
+    <div class="setting-group">
+        <label>Decimal Precision</label>
+        <select id="precision-select" onchange="savePreferences()">
+            <option value="2">2 Places</option>
+            <option value="4">4 Places</option>
+            <option value="6">6 Places</option>
+            <option value="9">9 Places</option>
+        </select>
+    </div>
+    <div class="setting-group">
+        <label>Instructional Color</label>
+        <input type="color" id="color-school" onchange="savePreferences()">
+    </div>
+    <div class="setting-group">
+        <label>Calendar Color</label>
+        <input type="color" id="color-cal" onchange="savePreferences()">
+    </div>
+
+    <div class="settings-divider">CUSTOMIZATION</div>
+    <button class="custom-btn" onclick="toggleCustomSection()">EDIT CLASS NAMES</button>
+    <div id="custom-inputs" style="display:none; margin-top: 10px;">
+        <div class="setting-group"><label>Block 1</label><input type="text" id="b1-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 2</label><input type="text" id="b2-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 3</label><input type="text" id="b3-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 4</label><input type="text" id="b4-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 5</label><input type="text" id="b5-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 6</label><input type="text" id="b6-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 7</label><input type="text" id="b7-input" oninput="savePreferences()"></div>
+        <div class="setting-group"><label>Block 8</label><input type="text" id="b8-input" oninput="savePreferences()"></div>
+    </div>
+
+    <button class="custom-btn danger-btn" onclick="resetDefaults()">RESET ALL PREFERENCES</button>
+</div>
+
+<div class="container">
+    <div class="header">
+        <span>CORE_INSTRUCTIONAL_TRACKER</span>
+        <span id="sys-clock">SYSTEM_START_...</span>
+    </div>
+
+    <div class="flip-timer">
+        <div class="flip-group">
+            <div class="flip-card" id="h1">0</div>
+            <div class="flip-card" id="h2">0</div>
+            <div class="flip-card" id="h3">0</div>
+        </div>
+        <div class="flip-separator">:</div>
+        <div class="flip-group">
+            <div class="flip-card" id="m1">0</div>
+            <div class="flip-card" id="m2">0</div>
+        </div>
+        <div class="flip-separator">:</div>
+        <div class="flip-group">
+            <div class="flip-card" id="s1">0</div>
+            <div class="flip-card" id="s2">0</div>
+        </div>
+    </div>
+
+    <div class="bar-container">
+        <div class="bar-label" id="label-school">
+            <span>Instructional Load [Done / Remaining]</span>
+            <span class="pct-readout" id="school-pct-split">0.00% / 100.00%</span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" id="school-bar"></div></div>
+    </div>
+
+    <div class="bar-container">
+        <div class="bar-label" id="label-cal">
+            <span>Calendar Year [Done / Remaining]</span>
+            <span class="pct-readout" id="cal-pct-split">0.00% / 100.00%</span>
+        </div>
+        <div class="bar-bg" id="cal-border"><div class="bar-fill alt" id="cal-bar"></div></div>
+    </div>
+
+    <div class="data-grid">
+        <div class="metric"><span class="label">Next Transition</span><span class="value" id="next-transition">--</span></div>
+        <div class="metric"><span class="label">Decimal School Days Left</span><span class="value" id="days-left" style="color: var(--school-bar);">--</span></div>
+        <div class="metric"><span class="label">Calendar Days Left</span><span class="value" id="cal-days">--</span></div>
+        <div class="metric"><span class="label">Total School Secs</span><span class="value" id="school-secs">--</span></div>
+    </div>
+
+    <div class="status-footer">
+        <div>DRAIN_STATE: <span id="state-ind">IDLE</span></div>
+        <div>V6.0_PERSISTENT // SYNC_ENABLED</div>
+    </div>
+</div>
+
+<div class="class-panel">
+    <div class="header">COURSE_LOAD_SYNC</div>
+    <div id="class-list"></div>
+</div>
+
+<script>
+    // Constants
+    const S_START = 8 * 60 + 55;
+    const S_END = 15 * 60 + 10;
+    const SECS_IN_SCHOOL_DAY = (S_END - S_START) * 60;
+    const PERIOD_SLOTS = [
+        { start: 8 * 60 + 55, end: 10 * 60 + 5 },
+        { start: 10 * 60 + 10, end: 11 * 60 + 20 },
+        { start: 12 * 60 + 45, end: 13 * 60 + 55 },
+        { start: 14 * 60 + 0, end: 15 * 60 + 10 }
+    ];
+    const SECS_PER_PERIOD = 70 * 60;
+    const TOTAL_SCHOOL_DAYS = 171;
+    const LAST_DAY = new Date("2026-06-04T15:10:00");
+    const START_YEAR = new Date("2025-08-20T08:55:00");
+    const ROTATION = {
+        1: [1, 3, 5, 7], 2: [2, 4, 6, 8], 3: [3, 5, 7, 1], 4: [4, 6, 8, 2],
+        5: [5, 7, 1, 3], 6: [6, 8, 2, 4], 7: [7, 1, 3, 5], 8: [8, 2, 4, 6]
+    };
+
+    const DEFAULTS = {
+        theme: 'dark',
+        precision: '6',
+        schoolColor: '#00ff00',
+        calColor: '#0088ff',
+        blocks: {
+            1: "CODING/HD", 2: "FRENCH", 3: "ORCHESTRA", 4: "MATH",
+            5: "SPANISH", 6: "HISTORY", 7: "BIO", 8: "ENGLISH"
+        }
+    };
+
+    let prefs = {};
+
+    window.onload = () => {
+        loadPreferences();
+        update();
+        setInterval(update, 50);
+    };
+
+    function loadPreferences() {
+        const stored = localStorage.getItem('vp_elite_prefs');
+        if (stored) {
+            prefs = JSON.parse(stored);
+        } else {
+            prefs = JSON.parse(JSON.stringify(DEFAULTS));
+        }
+
+        // Apply UI values
+        document.getElementById('theme-select').value = prefs.theme;
+        document.getElementById('precision-select').value = prefs.precision;
+        document.getElementById('color-school').value = prefs.schoolColor;
+        document.getElementById('color-cal').value = prefs.calColor;
+
+        for (let i = 1; i <= 8; i++) {
+            document.getElementById(`b${i}-input`).value = prefs.blocks[i];
+        }
+
+        applyPreferences();
+    }
+
+    function savePreferences() {
+        prefs.theme = document.getElementById('theme-select').value;
+        prefs.precision = document.getElementById('precision-select').value;
+        prefs.schoolColor = document.getElementById('color-school').value;
+        prefs.calColor = document.getElementById('color-cal').value;
+
+        for (let i = 1; i <= 8; i++) {
+            const val = document.getElementById(`b${i}-input`).value.trim();
+            prefs.blocks[i] = val === "" ? "FREE BLOCK" : val;
+        }
+
+        localStorage.setItem('vp_elite_prefs', JSON.stringify(prefs));
+        applyPreferences();
+    }
+
+    function applyPreferences() {
+        // Theme
+        if (prefs.theme === 'light') document.body.classList.add('light-mode');
+        else document.body.classList.remove('light-mode');
+
+        // Colors
+        document.documentElement.style.setProperty('--school-bar', prefs.schoolColor);
+        document.documentElement.style.setProperty('--cal-bar', prefs.calColor);
+        document.getElementById('label-school').style.color = prefs.schoolColor;
+        document.getElementById('label-cal').style.color = prefs.calColor;
+        document.getElementById('cal-border').style.borderColor = prefs.calColor;
+    }
+
+    function resetDefaults() {
+        if(confirm("Are you sure you want to reset all custom names and settings?")) {
+            localStorage.removeItem('vp_elite_prefs');
+            location.reload();
+        }
+    }
+
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    function toggleCustomSection() {
+        const section = document.getElementById('custom-inputs');
+        section.style.display = section.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function updateFlipDigit(id, newVal) {
+        const el = document.getElementById(id);
+        if (el.innerText !== newVal) {
+            el.classList.remove('animate-flip');
+            void el.offsetWidth;
+            el.classList.add('animate-flip');
+            setTimeout(() => { el.innerText = newVal; }, 300);
+        }
+    }
+
+    function formatPreciseTime(totalSeconds) {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = Math.floor(totalSeconds % 60);
+        return `${h}H ${m}M ${s}S`;
+    }
+
+    function formatCountdown(totalSeconds) {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = Math.floor(totalSeconds % 60);
+        if (h > 0) return `${h}H ${m}M ${s}S`;
+        return `${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
+    }
+
+    function update() {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const currentSecsTotal = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+        const precision = parseInt(prefs.precision || 6);
+
+        document.getElementById('sys-clock').innerText = "REF: " + Math.floor(now.getTime()/1000);
+
+        const isSchoolTime = (dayOfWeek > 0 && dayOfWeek < 6) && (currentSecsTotal >= S_START*60 && currentSecsTotal < S_END*60);
+        document.getElementById('state-ind').innerText = isSchoolTime ? "ACTIVE_DRAIN" : "CLOCK_LOCKED";
+
+        let transitionText = "--";
+        if (isSchoolTime) {
+            let found = false;
+            for (let i = 0; i < PERIOD_SLOTS.length; i++) {
+                const p = PERIOD_SLOTS[i];
+                if (currentSecsTotal < p.end * 60) {
+                    if (currentSecsTotal < p.start * 60) {
+                        transitionText = `TO P${i+1}: ${formatCountdown(p.start * 60 - currentSecsTotal)}`;
+                    } else {
+                        transitionText = `END P${i+1}: ${formatCountdown(p.end * 60 - currentSecsTotal)}`;
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) transitionText = "DISMISSAL_IMM";
+        } else {
+            let nextOpen = new Date(now);
+            nextOpen.setHours(Math.floor(S_START/60), S_START%60, 0, 0);
+            if (now >= nextOpen || dayOfWeek === 0 || dayOfWeek === 6) {
+                do { nextOpen.setDate(nextOpen.getDate() + 1); } while (nextOpen.getDay() === 0 || nextOpen.getDay() === 6);
+                nextOpen.setHours(Math.floor(S_START/60), S_START%60, 0, 0);
+            }
+            transitionText = `NEXT: ${formatCountdown(Math.floor((nextOpen - now)/1000))}`;
+        }
+        document.getElementById('next-transition').innerText = transitionText;
+
+        let totalSecsLeft = 0, classSecs = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0}, activeID = null, activePct = 0;
+        let daysSince = 0, startCheck = new Date(START_YEAR);
+        while(startCheck < now) { if(startCheck.getDay() !== 0 && startCheck.getDay() !== 6) daysSince++; startCheck.setDate(startCheck.getDate()+1); }
+
+        let fCheck = new Date(now);
+        while (fCheck < LAST_DAY) {
+            if (fCheck.getDay() !== 0 && fCheck.getDay() !== 6) {
+                const rotationIdx = ((daysSince % 8) || 8);
+                const classesToday = ROTATION[rotationIdx];
+                const dStart = new Date(fCheck).setHours(Math.floor(S_START/60), S_START%60, 0, 0);
+                const dEnd = new Date(fCheck).setHours(Math.floor(S_END/60), S_END%60, 0, 0);
+
+                if (now < dEnd) totalSecsLeft += (dEnd - Math.max(now, dStart)) / 1000;
+
+                PERIOD_SLOTS.forEach((p, idx) => {
+                    const ps = new Date(fCheck).setHours(Math.floor(p.start/60), p.start%60, 0, 0);
+                    const pe = new Date(fCheck).setHours(Math.floor(p.end/60), p.end%60, 0, 0);
+                    if (now < pe) {
+                        const rem = Math.max(0, (pe - Math.max(now, ps)) / 1000);
+                        classSecs[classesToday[idx]] += rem;
+                        if (fCheck.toDateString() === now.toDateString() && now >= ps && now < pe) {
+                            activeID = classesToday[idx];
+                            activePct = (rem / SECS_PER_PERIOD) * 100;
+                        }
+                    }
+                });
+                daysSince++;
+            }
+            fCheck.setDate(fCheck.getDate()+1); fCheck.setHours(8, 0, 0, 0);
+        }
+
+        // Timer
+        const hStr = Math.floor(totalSecsLeft / 3600).toString().padStart(3, '0');
+        const mStr = Math.floor((totalSecsLeft % 3600) / 60).toString().padStart(2, '0');
+        const sStr = Math.floor(totalSecsLeft % 60).toString().padStart(2, '0');
+        updateFlipDigit('h1', hStr[0]); updateFlipDigit('h2', hStr[1]); updateFlipDigit('h3', hStr[2]);
+        updateFlipDigit('m1', mStr[0]); updateFlipDigit('m2', mStr[1]);
+        updateFlipDigit('s1', sStr[0]); updateFlipDigit('s2', sStr[1]);
+
+        // Bars
+        const capacity = TOTAL_SCHOOL_DAYS * SECS_IN_SCHOOL_DAY;
+        const sDone = ((capacity - totalSecsLeft) / capacity) * 100;
+        const cDone = ((now - START_YEAR) / (LAST_DAY - START_YEAR)) * 100;
+
+        document.getElementById('school-bar').style.width = Math.min(100, Math.max(0, sDone)) + "%";
+        document.getElementById('school-pct-split').innerText = `${Math.max(0, sDone).toFixed(precision)}% / ${Math.max(0, 100 - sDone).toFixed(precision)}%`;
+        document.getElementById('cal-bar').style.width = Math.min(100, Math.max(0, cDone)) + "%";
+        document.getElementById('cal-pct-split').innerText = `${Math.max(0, cDone).toFixed(precision)}% / ${Math.max(0, 100 - cDone).toFixed(precision)}%`;
+
+        document.getElementById('days-left').innerText = (totalSecsLeft / SECS_IN_SCHOOL_DAY).toFixed(4);
+        document.getElementById('cal-days').innerText = Math.max(0, (LAST_DAY - now) / 86400000).toFixed(2);
+        document.getElementById('school-secs').innerText = Math.floor(totalSecsLeft).toLocaleString();
+
+        // Classes
+        let html = "";
+        const TOTAL_SESSIONS = Math.ceil((TOTAL_SCHOOL_DAYS / 8) * 4);
+        for(let i=1; i<=8; i++) {
+            const isA = (activeID === i);
+            html += `
+                <div class="subject-row" style="${isA ? 'border-color: var(--school-bar);' : ''}">
+                    <div class="subject-drain-bg" style="width: ${isA ? activePct : (classSecs[i]>0?100:0)}%; background: ${isA ? 'rgba(0,255,0,0.2)' : 'rgba(0,255,0,0.03)'};"></div>
+                    <div class="subject-content">
+                        <div>
+                            <div class="subject-name">${prefs.blocks[i]} ${isA ? ' [ACTIVE]' : ''}</div>
+                            <div class="subject-time">${formatPreciseTime(classSecs[i])} REMAINING</div>
+                            <div class="subject-sessions">SESSION ${Math.max(0, TOTAL_SESSIONS - Math.ceil(classSecs[i]/SECS_PER_PERIOD))} OF ${TOTAL_SESSIONS}</div>
+                        </div>
+                        <div class="subject-freq">${Math.ceil(classSecs[i] / SECS_PER_PERIOD)}X</div>
+                    </div>
+                </div>
+            `;
+        }
+        document.getElementById('class-list').innerHTML = html;
+    }
+</script>
+</body>
+</html>
