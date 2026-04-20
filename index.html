@@ -309,7 +309,7 @@
 
     <div class="status-footer">
         <div>DRAIN_STATE: <span id="state-ind">IDLE</span></div>
-        <div>V6.0_PERSISTENT // SYNC_ENABLED</div>
+        <div>V6.3_ROT_FIX // SYNC_ENABLED</div>
     </div>
 </div>
 
@@ -333,6 +333,11 @@
     const TOTAL_SCHOOL_DAYS = 171;
     const LAST_DAY = new Date("2026-06-04T15:10:00");
     const START_YEAR = new Date("2025-08-20T08:55:00");
+
+    // ANCHOR: Use April 20, 2026 as Day 1
+    const ANCHOR_DATE = new Date("2026-04-20T00:00:00");
+    const ANCHOR_DAY_TYPE = 1;
+
     const ROTATION = {
         1: [1, 3, 5, 7], 2: [2, 4, 6, 8], 3: [3, 5, 7, 1], 4: [4, 6, 8, 2],
         5: [5, 7, 1, 3], 6: [6, 8, 2, 4], 7: [7, 1, 3, 5], 8: [8, 2, 4, 6]
@@ -365,7 +370,6 @@
             prefs = JSON.parse(JSON.stringify(DEFAULTS));
         }
 
-        // Apply UI values
         document.getElementById('theme-select').value = prefs.theme;
         document.getElementById('precision-select').value = prefs.precision;
         document.getElementById('color-school').value = prefs.schoolColor;
@@ -374,7 +378,6 @@
         for (let i = 1; i <= 8; i++) {
             document.getElementById(`b${i}-input`).value = prefs.blocks[i];
         }
-
         applyPreferences();
     }
 
@@ -388,17 +391,13 @@
             const val = document.getElementById(`b${i}-input`).value.trim();
             prefs.blocks[i] = val === "" ? "FREE BLOCK" : val;
         }
-
         localStorage.setItem('vp_elite_prefs', JSON.stringify(prefs));
         applyPreferences();
     }
 
     function applyPreferences() {
-        // Theme
         if (prefs.theme === 'light') document.body.classList.add('light-mode');
         else document.body.classList.remove('light-mode');
-
-        // Colors
         document.documentElement.style.setProperty('--school-bar', prefs.schoolColor);
         document.documentElement.style.setProperty('--cal-bar', prefs.calColor);
         document.getElementById('label-school').style.color = prefs.schoolColor;
@@ -448,6 +447,39 @@
         return `${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
     }
 
+    function countSchoolDays(start, end) {
+        let count = 0;
+        let cur = new Date(start);
+        cur.setHours(0,0,0,0);
+        const endDay = new Date(end);
+        endDay.setHours(0,0,0,0);
+        while (cur < endDay) {
+            const day = cur.getDay();
+            if (day !== 0 && day !== 6) count++;
+            cur.setDate(cur.getDate() + 1);
+        }
+        return count;
+    }
+
+    function getRotationDay(targetDate) {
+        // Calculate school days from ANCHOR_DATE to targetDate
+        let isPast = targetDate < ANCHOR_DATE;
+        let start = isPast ? targetDate : ANCHOR_DATE;
+        let end = isPast ? ANCHOR_DATE : targetDate;
+
+        let diff = countSchoolDays(start, end);
+
+        let rotation;
+        if (isPast) {
+            // Subtract diff from ANCHOR_DAY_TYPE and wrap around 1-8
+            rotation = ((ANCHOR_DAY_TYPE - diff - 1) % 8 + 8) % 8 + 1;
+        } else {
+            // Add diff to ANCHOR_DAY_TYPE and wrap around 1-8
+            rotation = ((ANCHOR_DAY_TYPE + diff - 1) % 8) + 1;
+        }
+        return rotation;
+    }
+
     function update() {
         const now = new Date();
         const dayOfWeek = now.getDay();
@@ -487,13 +519,13 @@
         document.getElementById('next-transition').innerText = transitionText;
 
         let totalSecsLeft = 0, classSecs = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0}, activeID = null, activePct = 0;
-        let daysSince = 0, startCheck = new Date(START_YEAR);
-        while(startCheck < now) { if(startCheck.getDay() !== 0 && startCheck.getDay() !== 6) daysSince++; startCheck.setDate(startCheck.getDate()+1); }
 
         let fCheck = new Date(now);
+        fCheck.setHours(0,0,0,0);
+
         while (fCheck < LAST_DAY) {
             if (fCheck.getDay() !== 0 && fCheck.getDay() !== 6) {
-                const rotationIdx = ((daysSince % 8) || 8);
+                const rotationIdx = getRotationDay(fCheck);
                 const classesToday = ROTATION[rotationIdx];
                 const dStart = new Date(fCheck).setHours(Math.floor(S_START/60), S_START%60, 0, 0);
                 const dEnd = new Date(fCheck).setHours(Math.floor(S_END/60), S_END%60, 0, 0);
@@ -506,40 +538,39 @@
                     if (now < pe) {
                         const rem = Math.max(0, (pe - Math.max(now, ps)) / 1000);
                         classSecs[classesToday[idx]] += rem;
+                        // Highlighting check: must be today and during the specific period slot
                         if (fCheck.toDateString() === now.toDateString() && now >= ps && now < pe) {
                             activeID = classesToday[idx];
                             activePct = (rem / SECS_PER_PERIOD) * 100;
                         }
                     }
                 });
-                daysSince++;
             }
-            fCheck.setDate(fCheck.getDate()+1); fCheck.setHours(8, 0, 0, 0);
+            fCheck.setDate(fCheck.getDate()+1);
+            fCheck.setHours(0,0,0,0);
         }
 
-        // Timer
-        const hStr = Math.floor(totalSecsLeft / 3600).toString().padStart(3, '0');
+        const hVal = Math.floor(totalSecsLeft / 3600);
+        const hStr = hVal.toString().padStart(3, '0');
         const mStr = Math.floor((totalSecsLeft % 3600) / 60).toString().padStart(2, '0');
         const sStr = Math.floor(totalSecsLeft % 60).toString().padStart(2, '0');
         updateFlipDigit('h1', hStr[0]); updateFlipDigit('h2', hStr[1]); updateFlipDigit('h3', hStr[2]);
         updateFlipDigit('m1', mStr[0]); updateFlipDigit('m2', mStr[1]);
         updateFlipDigit('s1', sStr[0]); updateFlipDigit('s2', sStr[1]);
 
-        // Bars
         const capacity = TOTAL_SCHOOL_DAYS * SECS_IN_SCHOOL_DAY;
-        const sDone = ((capacity - totalSecsLeft) / capacity) * 100;
-        const cDone = ((now - START_YEAR) / (LAST_DAY - START_YEAR)) * 100;
+        const sDone = Math.max(0, Math.min(100, ((capacity - totalSecsLeft) / capacity) * 100));
+        const cDone = Math.max(0, Math.min(100, ((now - START_YEAR) / (LAST_DAY - START_YEAR)) * 100));
 
-        document.getElementById('school-bar').style.width = Math.min(100, Math.max(0, sDone)) + "%";
-        document.getElementById('school-pct-split').innerText = `${Math.max(0, sDone).toFixed(precision)}% / ${Math.max(0, 100 - sDone).toFixed(precision)}%`;
-        document.getElementById('cal-bar').style.width = Math.min(100, Math.max(0, cDone)) + "%";
-        document.getElementById('cal-pct-split').innerText = `${Math.max(0, cDone).toFixed(precision)}% / ${Math.max(0, 100 - cDone).toFixed(precision)}%`;
+        document.getElementById('school-bar').style.width = sDone + "%";
+        document.getElementById('school-pct-split').innerText = `${sDone.toFixed(precision)}% / ${(100 - sDone).toFixed(precision)}%`;
+        document.getElementById('cal-bar').style.width = cDone + "%";
+        document.getElementById('cal-pct-split').innerText = `${cDone.toFixed(precision)}% / ${(100 - cDone).toFixed(precision)}%`;
 
         document.getElementById('days-left').innerText = (totalSecsLeft / SECS_IN_SCHOOL_DAY).toFixed(4);
         document.getElementById('cal-days').innerText = Math.max(0, (LAST_DAY - now) / 86400000).toFixed(2);
         document.getElementById('school-secs').innerText = Math.floor(totalSecsLeft).toLocaleString();
 
-        // Classes
         let html = "";
         const TOTAL_SESSIONS = Math.ceil((TOTAL_SCHOOL_DAYS / 8) * 4);
         for(let i=1; i<=8; i++) {
