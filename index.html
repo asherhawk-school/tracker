@@ -362,6 +362,10 @@
         setInterval(update, 50);
     };
 
+    function escHtml(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function loadPreferences() {
         const stored = localStorage.getItem('vp_elite_prefs');
         if (stored) {
@@ -580,7 +584,7 @@
                     <div class="subject-drain-bg" style="width: ${isA ? activePct : (classSecs[i]>0?100:0)}%; background: ${isA ? 'rgba(0,255,0,0.2)' : 'rgba(0,255,0,0.03)'};"></div>
                     <div class="subject-content">
                         <div>
-                            <div class="subject-name">${prefs.blocks[i]} ${isA ? ' [ACTIVE]' : ''}</div>
+                            <div class="subject-name">${escHtml(prefs.blocks[i])} ${isA ? ' [ACTIVE]' : ''}</div>
                             <div class="subject-time">${formatPreciseTime(classSecs[i])} REMAINING</div>
                             <div class="subject-sessions">SESSION ${Math.max(0, TOTAL_SESSIONS - Math.ceil(classSecs[i]/SECS_PER_PERIOD))} OF ${TOTAL_SESSIONS}</div>
                         </div>
